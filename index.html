@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GangSheet Quote — free DTF gang sheet calculator</title>
+<meta name="description" content="Free DTF gang sheet calculator: enter mixed-size designs, film width and your standard sheet lengths; get film length, smallest sheet, waste % and a quote. Runs in your browser, nothing uploaded.">
+<link rel="canonical" href="https://stealth0xb.github.io/gangsheet-quote/">
+<style>
+  /* Layout: designs list + film settings on the left, packed-sheet preview + quote on the right; stacks on phones */
+  :root {
+    --bg: #f5f3f0;
+    --panel: #ffffff;
+    --ink: #1a1817;
+    --ink-soft: #6a645f;
+    --line: #dcd6cf;
+    --accent: #7a2cc7;        /* DTF magenta-violet ink */
+    --accent-ink: #ffffff;
+    --film: #ece7e1;
+    --waste: #d98b2b;
+    --good: #2f7d4f;
+    --c1: #7a2cc7; --c2: #0f7f8c; --c3: #c2470f; --c4: #2f7d4f; --c5: #b0268f; --c6: #3b5bb5;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    --sans: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141214; --panel: #1d1a1e; --ink: #ece7ef; --ink-soft: #9d95a4; --line: #322d36;
+      --accent: #b07aec; --accent-ink: #160a24; --film: #26222a; --waste: #e39a3b; --good: #5cb57f;
+      --c1: #b07aec; --c2: #4fb7c4; --c3: #ee8a5a; --c4: #5cb57f; --c5: #e07ccb; --c6: #7f9bea;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #141214; --panel: #1d1a1e; --ink: #ece7ef; --ink-soft: #9d95a4; --line: #322d36;
+    --accent: #b07aec; --accent-ink: #160a24; --film: #26222a; --waste: #e39a3b; --good: #5cb57f;
+    --c1: #b07aec; --c2: #4fb7c4; --c3: #ee8a5a; --c4: #5cb57f; --c5: #e07ccb; --c6: #7f9bea;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.45; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 20; background: var(--panel); }
+
+  .wrap {
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 18px 40px; max-width: 1140px; margin: 0 auto;
+  }
+  header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+  header h1 { font-size: 1.45rem; margin: 0; letter-spacing: -.01em; }
+  header h1 span { color: var(--accent); }
+  header p { margin: 0; color: var(--ink-soft); font-size: .9rem; max-width: 60ch; }
+
+  .cols { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); gap: 16px; }
+  @media (max-width: 860px) { .cols { grid-template-columns: 1fr; } }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; min-width: 0; }
+  .card h2 { font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-soft); margin: 0 0 12px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+  .card h2 .sp { margin-left: auto; font-weight: 400; letter-spacing: 0; text-transform: none; }
+  .card + .card { margin-top: 14px; }
+
+  .f { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: .78rem; color: var(--ink-soft); min-width: 0; }
+  label b { color: var(--ink); font-weight: 500; }
+  input[type=number], input[type=text], select {
+    font: inherit; font-family: var(--mono); font-size: .9rem; padding: 7px 9px;
+    border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); width: 100%; min-width: 0;
+  }
+  input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .check { flex-direction: row; align-items: center; gap: 8px; font-size: .85rem; color: var(--ink); grid-column: 1 / -1; }
+  .check input { width: 16px; height: 16px; accent-color: var(--accent); }
+
+  /* designs table */
+  table.designs { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  table.designs th { text-align: left; font-size: .66rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); padding: 0 4px 6px; font-weight: 600; }
+  table.designs td { padding: 3px 4px; vertical-align: middle; }
+  table.designs input { padding: 6px 7px; font-size: .85rem; }
+  table.designs td.sw { width: 18px; }
+  table.designs td.sw i { display: block; width: 12px; height: 12px; border-radius: 3px; }
+  table.designs td.x { width: 28px; text-align: right; }
+  .xbtn { border: 0; background: transparent; color: var(--ink-soft); font-size: 1rem; cursor: pointer; padding: 4px; line-height: 1; }
+  .xbtn:hover { color: var(--waste); }
+  .btn { font: inherit; font-size: .85rem; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+  .btn.ghost { background: transparent; color: var(--accent); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  .note { font-size: .78rem; color: var(--ink-soft); }
+
+  .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  @media (max-width: 480px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .stat { padding: 10px 12px; border-radius: 6px; background: var(--bg); border: 1px solid var(--line); min-width: 0; }
+  .stat .k { font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
+  .stat .v { font-family: var(--mono); font-size: 1.1rem; font-variant-numeric: tabular-nums; margin-top: 2px; overflow-wrap: anywhere; }
+  .stat .v small { font-size: .7rem; color: var(--ink-soft); }
+  .stat.hero { grid-column: 1 / -1; background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .stat.hero .k, .stat.hero .v small { color: var(--accent-ink); opacity: .85; }
+  .stat.hero .v { font-size: 1.7rem; }
+  .stat.good { border-color: var(--good); }
+  .stat.good .k { color: var(--good); }
+
+  canvas { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--film); }
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: .75rem; color: var(--ink-soft); margin-top: 8px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 5px; }
+
+  table.brk { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  table.brk td { padding: 6px 0; border-bottom: 1px solid var(--line); }
+  table.brk td:last-child { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  table.brk tr.total td { border-bottom: 0; font-weight: 600; padding-top: 10px; }
+  table.brk td.sub { color: var(--ink-soft); padding-left: 14px; font-size: .8rem; }
+
+  pre.quote { font-family: var(--mono); font-size: .78rem; white-space: pre-wrap; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin: 0; overflow-x: auto; }
+  .warn { color: var(--waste); font-size: .82rem; margin-top: 8px; }
+  .warn:empty { display: none; }
+  .buy { margin-top: 24px; border: 1px solid var(--accent); border-radius: 8px; padding: 14px 16px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; background: var(--panel); }
+  .buy .t { font-size: .92rem; min-width: 0; flex: 1 1 260px; }
+  .buy .t b { display: block; font-size: 1rem; }
+  .buy a { font-size: .9rem; padding: 9px 16px; border-radius: 6px; background: var(--accent); color: var(--accent-ink); text-decoration: none; font-weight: 500; white-space: nowrap; }
+</style>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>GangSheet <span>Quote</span></h1>
+    <p>Mixed-size DTF designs → how much film, which standard sheet, what to charge. Runs in your browser; nothing is uploaded.</p>
+  </header>
+
+  <div class="cols">
+    <div>
+      <div class="card">
+        <h2>Designs on this order <span class="sp note" id="dcount"></span></h2>
+        <table class="designs">
+          <thead><tr><th></th><th>Name</th><th>W</th><th>H</th><th>Qty</th><th></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <div class="row">
+          <button class="btn ghost" id="add" type="button">+ Add design</button>
+          <label class="check" style="grid-column:auto;margin-left:auto"><input id="rot" type="checkbox" checked> Allow rotation</label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Film</h2>
+        <div class="f">
+          <label><b>Units</b>
+            <select id="units"><option value="in">inches</option><option value="mm">millimetres</option></select>
+          </label>
+          <label><b>Currency</b>
+            <select id="cur"><option value="$">$ USD</option><option value="€">€ EUR</option><option value="£">£ GBP</option></select>
+          </label>
+          <label><b>Film width</b><input id="fw" type="number" min="1" step="0.5" value="22"></label>
+          <label><b>Gap between designs</b><input id="gap" type="number" min="0" step="0.05" value="0.25"></label>
+          <label style="grid-column:1/-1"><b>Standard sheet lengths you sell (comma separated)</b><input id="tiers" type="text" value="12, 24, 36, 48, 60, 120"></label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Costs &amp; margin</h2>
+        <div class="f">
+          <label><b>Film + ink + powder cost per linear <span id="lu">ft</span></b><input id="fcost" type="number" min="0" step="0.01" value="1.80"></label>
+          <label><b>Labor minutes (whole job)</b><input id="lmin" type="number" min="0" step="1" value="20"></label>
+          <label><b>Labor rate per hour</b><input id="lrate" type="number" min="0" step="0.5" value="40"></label>
+          <label><b>Setup / handling fee</b><input id="setup" type="number" min="0" step="0.5" value="5"></label>
+          <label><b>Margin %</b><input id="margin" type="number" min="0" max="95" step="1" value="50"></label>
+          <label><b>Round quote to</b>
+            <select id="round"><option value="0.01">cents</option><option value="0.5">0.50</option><option value="1" selected>whole</option><option value="5">5</option></select>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <h2>Result</h2>
+        <div class="stats">
+          <div class="stat hero"><div class="k">Quote price</div><div class="v" id="oPrice">—</div></div>
+          <div class="stat"><div class="k">Film needed</div><div class="v" id="oLen">—</div></div>
+          <div class="stat good"><div class="k">Smallest standard sheet</div><div class="v" id="oTier">—</div></div>
+          <div class="stat"><div class="k">Film used</div><div class="v" id="oUse">—</div></div>
+          <div class="stat"><div class="k">Total cost</div><div class="v" id="oCost">—</div></div>
+          <div class="stat"><div class="k">Profit</div><div class="v" id="oProfit">—</div></div>
+          <div class="stat"><div class="k">Pieces</div><div class="v" id="oPieces">—</div></div>
+        </div>
+        <div class="warn" id="warn"></div>
+      </div>
+
+      <div class="card">
+        <h2>Packed sheet preview</h2>
+        <canvas id="cv" width="900" height="520" aria-label="Packed gang sheet preview"></canvas>
+        <div class="legend" id="legend"></div>
+      </div>
+
+      <div class="card">
+        <h2>Cost &amp; per-design breakdown</h2>
+        <table class="brk" id="brk"></table>
+      </div>
+
+      <div class="card">
+        <h2>Quote text</h2>
+        <pre class="quote" id="qtext"></pre>
+        <div class="row">
+          <button class="btn" id="copy" type="button">Copy quote</button>
+          <span class="note" id="copied"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="buy">
+    <div class="t"><b>Keep it on your computer — $19, one time</b>Offline file, free updates, your prices never leave your machine. This free version is open source (MIT) — the code is public, check it yourself.</div>
+    <a href="https://lebbenofficial.gumroad.com/l/gangsheetquote">Get the offline version</a>
+  </div>
+</div>
+
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const COLORS = ['--c1','--c2','--c3','--c4','--c5','--c6'];
+  const MAX_PIECES = 4000;
+
+  // Example order (marked as example): a typical mixed team order
+  let designs = [
+    { name: 'Front logo', w: 10, h: 12, q: 12 },
+    { name: 'Left chest', w: 4, h: 4, q: 12 },
+    { name: 'Sleeve', w: 3, h: 3, q: 24 },
+    { name: 'Neck tag', w: 2.5, h: 1.5, q: 12 },
+  ];
+
+  function renderRows() {
+    $('rows').innerHTML = designs.map((d, i) => `
+      <tr>
+        <td class="sw"><i style="background:var(${COLORS[i % COLORS.length]})"></i></td>
+        <td><input type="text" data-i="${i}" data-k="name" value="${d.name.replace(/"/g,'&quot;')}" aria-label="Design name"></td>
+        <td><input type="number" min="0.1" step="0.1" data-i="${i}" data-k="w" value="${d.w}" aria-label="Width"></td>
+        <td><input type="number" min="0.1" step="0.1" data-i="${i}" data-k="h" value="${d.h}" aria-label="Height"></td>
+        <td><input type="number" min="0" step="1" data-i="${i}" data-k="q" value="${d.q}" aria-label="Quantity"></td>
+        <td class="x"><button class="xbtn" data-del="${i}" type="button" aria-label="Remove design">×</button></td>
+      </tr>`).join('');
+    $('dcount').textContent = designs.length + ' design' + (designs.length === 1 ? '' : 's') + ' · example order, edit freely';
+  }
+  $('rows').addEventListener('input', e => {
+    const t = e.target; if (!t.dataset.k) return;
+    const d = designs[+t.dataset.i];
+    d[t.dataset.k] = t.dataset.k === 'name' ? t.value : parseFloat(t.value);
+    calc();
+  });
+  $('rows').addEventListener('click', e => {
+    const b = e.target.closest('[data-del]'); if (!b) return;
+    designs.splice(+b.dataset.del, 1); renderRows(); calc();
+  });
+  $('add').addEventListener('click', () => { designs.push({ name: 'Design ' + (designs.length + 1), w: 4, h: 4, q: 10 }); renderRows(); calc(); });
+  ['units','cur','fw','gap','tiers','fcost','lmin','lrate','setup','margin','round','rot'].forEach(id => $(id).addEventListener('input', calc));
+
+  const num = id => { const v = parseFloat($(id).value); return isFinite(v) ? v : 0; };
+  const unitInfo = u => u === 'mm' ? { lin: 'm', linPer: 1000, len: 'mm' } : { lin: 'ft', linPer: 12, len: 'in' };
+  const fmtMoney = (v, cur) => cur + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmt = (v, d = 1) => v.toLocaleString(undefined, { maximumFractionDigits: d });
+
+  // Shelf packing (first-fit decreasing by height) of mixed rectangles into a fixed-width roll.
+  // Returns placed pieces and total length. Rotation: choose the orientation with the smaller height that still fits the width.
+  // Two orientation strategies are tried and the one that uses less film wins:
+  //  'dense'  = orientation that packs the most pieces per unit of length when laid out alone
+  //  'short'  = orientation with the smaller height (shorter shelves, mixes better with other sizes)
+  function pack(W, gap, items, allowRot) {
+    if (!allowRot) return packWith(W, gap, items, false, 'dense');
+    const a = packWith(W, gap, items, true, 'dense'), b = packWith(W, gap, items, true, 'short');
+    return a.length <= b.length ? a : b;
+  }
+  function packWith(W, gap, items, allowRot, strategy) {
+    const pieces = [];
+    const perLen = o => (Math.floor((W + gap) / (o.w + gap)) || 0) / o.h;
+    items.forEach((it, idx) => {
+      let o = null;
+      const cands = [{ w: it.w, h: it.h, rot: false }];
+      if (allowRot && it.w !== it.h) cands.push({ w: it.h, h: it.w, rot: true });
+      const fits = cands.filter(c => c.w <= W);
+      if (fits.length) {
+        fits.sort(strategy === 'dense' ? (x, y) => perLen(y) - perLen(x) || x.h - y.h : (x, y) => x.h - y.h);
+        o = fits[0];
+      }
+      for (let k = 0; k < it.q; k++) {
+        if (!o) pieces.push({ d: idx, w: it.w, h: it.h, nofit: true });
+        else pieces.push({ d: idx, w: o.w, h: o.h, rot: o.rot });
+      }
+    });
+    const bad = pieces.filter(p => p.nofit);
+    const good = pieces.filter(p => !p.nofit).sort((a, b) => b.h - a.h || b.w - a.w);
+    const shelves = []; // { y, h, x }
+    let length = 0;
+    good.forEach(p => {
+      let s = shelves.find(s => s.x + p.w <= W + 1e-9 && p.h <= s.h + 1e-9);
+      if (!s) {
+        const y = shelves.length ? length + gap : 0;
+        s = { y, h: p.h, x: 0 }; shelves.push(s);
+        length = y + p.h;
+      }
+      p.x = s.x; p.y = s.y; s.x += p.w + gap;
+    });
+    return { placed: good, bad, length, shelves };
+  }
+
+  function invalid(msg) {
+    ['oPrice','oLen','oTier','oUse','oCost','oProfit','oPieces'].forEach(id => $(id).textContent = '—');
+    $('brk').innerHTML = ''; $('qtext').textContent = ''; $('legend').innerHTML = '';
+    $('warn').textContent = msg;
+    const cv = $('cv'); cv.getContext('2d').clearRect(0, 0, cv.width, cv.height);
+  }
+
+  function calc() {
+    const U = unitInfo($('units').value), cur = $('cur').value;
+    $('lu').textContent = U.lin;
+    const W = num('fw'), gap = Math.max(0, num('gap')), rot = $('rot').checked;
+    const items = designs.filter(d => d.w > 0 && d.h > 0 && d.q > 0).map(d => ({ ...d, q: Math.round(d.q) }));
+    if (W <= 0) return invalid('Enter a film width greater than zero.');
+    if (!items.length) return invalid('Add at least one design with width, height and quantity greater than zero.');
+    const totalPieces = items.reduce((s, d) => s + d.q, 0);
+    if (totalPieces > MAX_PIECES) return invalid('That is ' + totalPieces + ' pieces — this tool previews up to ' + MAX_PIECES + ' per order. Split the order.');
+
+    const r = pack(W, gap, items.map(d => ({ ...d, _i: designs.indexOf(d) })), rot);
+    // map back design index for colors: pack used index in filtered array → use filtered order for color
+    const warn = [];
+    if (r.bad.length) {
+      const names = [...new Set(r.bad.map(p => items[p.d].name))].join(', ');
+      warn.push(names + ': wider than the film even rotated — left out of the sheet.');
+    }
+    if (!r.placed.length) return invalid('No design fits on this film width. ' + warn.join(' '));
+
+    const length = r.length;
+    const usedArea = r.placed.reduce((s, p) => s + p.w * p.h, 0);
+    const sheetArea = W * length;
+    const usePct = sheetArea > 0 ? usedArea / sheetArea * 100 : 0;
+
+    const tiers = $('tiers').value.split(/[,\s]+/).map(parseFloat).filter(v => isFinite(v) && v > 0).sort((a, b) => a - b);
+    let tier = null;
+    if (tiers.length) {
+      tier = tiers.find(t => t >= length - 1e-9);
+      if (tier == null) { const big = tiers[tiers.length - 1]; tier = { multi: Math.ceil(length / big), size: big }; }
+    }
+
+    const filmCost = (length / U.linPer) * num('fcost');
+    const laborCost = (num('lmin') / 60) * num('lrate');
+    const setup = num('setup');
+    const cost = filmCost + laborCost + setup;
+    const m = Math.min(95, Math.max(0, num('margin'))) / 100;
+    const step = parseFloat($('round').value) || 0.01;
+    const rawPrice = cost / (1 - m);
+    const price = Math.ceil(rawPrice / step - 1e-9) * step;
+    const profit = price - cost;
+
+    $('oPrice').textContent = fmtMoney(price, cur);
+    $('oLen').innerHTML = fmt(length, 1) + ' ' + U.len + ' <small>× ' + fmt(W, 1) + ' wide · ' + fmt(length / U.linPer, 2) + ' ' + U.lin + '</small>';
+    $('oTier').innerHTML = tier == null ? '—' : (tier.multi ? tier.multi + ' × ' + fmt(W, 0) + '×' + fmt(tier.size, 0) : fmt(W, 0) + ' × ' + fmt(tier, 0) + ' <small>' + fmt(tier - length, 1) + ' ' + U.len + ' spare</small>');
+    $('oUse').innerHTML = fmt(usePct, 1) + '% <small>' + fmt(100 - usePct, 1) + '% waste</small>';
+    $('oCost').textContent = fmtMoney(cost, cur);
+    $('oProfit').textContent = fmtMoney(profit, cur);
+    $('oPieces').innerHTML = r.placed.length + ' <small>in ' + r.shelves.length + ' rows</small>';
+    if (tier && tier.multi) warn.push('Longer than your biggest standard sheet — needs ' + tier.multi + ' sheets of ' + fmt(tier.size, 0) + '.');
+    $('warn').textContent = warn.join(' ');
+
+    // per-design allocation of price by area share (what each transfer "costs" the customer)
+    const rows = [];
+    items.forEach((d, i) => {
+      const area = r.placed.filter(p => p.d === i).reduce((s, p) => s + p.w * p.h, 0);
+      const share = usedArea > 0 ? area / usedArea : 0;
+      const placedQ = r.placed.filter(p => p.d === i).length;
+      rows.push({ name: d.name, q: placedQ, dims: fmt(d.w, 2) + '×' + fmt(d.h, 2), each: placedQ ? price * share / placedQ : 0, sub: price * share });
+    });
+
+    $('brk').innerHTML =
+      '<tr><td>Film (' + fmt(length / U.linPer, 2) + ' ' + U.lin + ' @ ' + fmtMoney(num('fcost'), cur) + ')</td><td>' + fmtMoney(filmCost, cur) + '</td></tr>' +
+      '<tr><td>Labor (' + fmt(num('lmin'), 0) + ' min @ ' + fmtMoney(num('lrate'), cur) + '/h)</td><td>' + fmtMoney(laborCost, cur) + '</td></tr>' +
+      '<tr><td>Setup / handling</td><td>' + fmtMoney(setup, cur) + '</td></tr>' +
+      '<tr class="total"><td>Cost</td><td>' + fmtMoney(cost, cur) + '</td></tr>' +
+      '<tr class="total"><td>Quote (margin ' + fmt(m * 100, 0) + '%)</td><td>' + fmtMoney(price, cur) + '</td></tr>' +
+      rows.map(x => '<tr><td class="sub">' + x.q + ' × ' + x.name + ' (' + x.dims + ')</td><td>' + fmtMoney(x.each, cur) + ' ea</td></tr>').join('');
+
+    $('qtext').textContent =
+`DTF GANG SHEET QUOTE
+${rows.map(x => `${x.q} × ${x.name} ${x.dims} ${U.len}`).join('\n')}
+
+Film: ${fmt(W, 1)} × ${fmt(length, 1)} ${U.len}${tier == null ? '' : (tier.multi ? ` (${tier.multi} × ${fmt(W,0)}×${fmt(tier.size,0)} sheets)` : ` → ${fmt(W,0)}×${fmt(tier,0)} sheet`)}
+${r.placed.length} transfers, ${fmt(usePct, 0)}% of film used
+
+Price: ${fmtMoney(price, cur)}
+Valid 14 days. Excludes tax and shipping.`;
+
+    draw(W, r, items);
+  }
+
+  function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+
+  function draw(W, r, items) {
+    const cv = $('cv'), ctx = cv.getContext('2d');
+    const Wc = cv.width, Hc = cv.height, pad = 16;
+    ctx.clearRect(0, 0, Wc, Hc);
+    // film drawn horizontally: length along x, width along y
+    const L = Math.max(r.length, W * 0.5);
+    const s = Math.min((Wc - pad * 2) / L, (Hc - pad * 2) / W);
+    const ox = pad, oy = (Hc - W * s) / 2;
+    ctx.fillStyle = cssVar('--film'); ctx.fillRect(ox, oy, L * s, W * s);
+    ctx.strokeStyle = cssVar('--line'); ctx.strokeRect(ox + .5, oy + .5, L * s - 1, W * s - 1);
+    r.placed.forEach(p => {
+      ctx.fillStyle = cssVar(COLORS[p.d % COLORS.length]);
+      ctx.globalAlpha = .85;
+      ctx.fillRect(ox + p.y * s + .5, oy + p.x * s + .5, Math.max(1, p.h * s - 1), Math.max(1, p.w * s - 1));
+      ctx.globalAlpha = 1;
+    });
+    ctx.fillStyle = cssVar('--ink-soft'); ctx.font = '12px ' + cssVar('--mono');
+    ctx.fillText('film ' + fmt(W, 1) + ' wide · ' + fmt(r.length, 1) + ' long', pad, Hc - 4);
+    $('legend').innerHTML = items.map((d, i) => '<span><i style="background:var(' + COLORS[i % COLORS.length] + ')"></i>' + d.name + '</span>').join('')
+      + '<span class="note">Rows are packed tallest-first; the preview is to scale.</span>';
+  }
+
+  $('copy').addEventListener('click', () => {
+    const t = $('qtext').textContent;
+    const done = () => { $('copied').textContent = 'Copied.'; setTimeout(() => $('copied').textContent = '', 1800); };
+    const fallback = () => { const rg = document.createRange(); rg.selectNodeContents($('qtext')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(rg); $('copied').textContent = 'Selected — press Ctrl/Cmd+C.'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done).catch(fallback); else fallback();
+  });
+
+  const mq = matchMedia('(prefers-color-scheme: dark)');
+  mq.addEventListener && mq.addEventListener('change', calc);
+  renderRows(); calc();
+})();
+</script>
+
+</body>
+</html>
